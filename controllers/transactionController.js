@@ -7,30 +7,23 @@ const {
 } = require("../models");
 
 class TransactionController {
-  async getAll(req, res, next) {
+  async getLastCheckout(req, res, next) {
     try {
-      const data = await Transaction_Detail.findAll({});
-      res.status(200).json(data);
-    } catch (err) {
-      next(err);
-    }
-  }
-
-  async getById(req, res, next) {
-    const { id } = req.params;
-
-    try {
-      const transactionId = await Transaction_Detail.findOne({
-        where: {
-          id,
-        },
+      const lastCheckout = await Transaction_Detail.findOne({
+        order: [["createdAt", "DESC"]],
       });
 
-      if (!transactionId) {
-        return res.status(404).json({ error: "Id not Found" });
+      if (!lastCheckout) {
+        return res
+          .status(404)
+          .json({ error: "No previous checkout data found" });
       }
 
-      res.status(200).json(transactionId);
+      const allItemsInLastCheckout = await Transaction_Detail.findAll({
+        where: { no_order: lastCheckout.no_order },
+      });
+
+      res.status(200).json(allItemsInLastCheckout);
     } catch (err) {
       next(err);
     }
@@ -39,20 +32,10 @@ class TransactionController {
   async checkout(req, res, next) {
     const { total_price, paid_amount, products } = req.body;
     const no_order = randomOrderNumber();
+
     const t = await sequelize.transaction();
 
     try {
-      const createCheckout = await Transaction.create(
-        {
-          total_price,
-          paid_amount,
-          no_order,
-        },
-        { transaction: t }
-      );
-
-      const transactionDetails = [];
-
       for (const product of products) {
         const { id, quantity } = product;
 
@@ -77,24 +60,30 @@ class TransactionController {
         foundProduct.stock = updatedStock;
         await foundProduct.save({ transaction: t });
 
-        const transactionDetail = await Transaction_Detail.create(
+        if (total_price > paid_amount) {
+          await t.rollback();
+          return res
+            .status(400)
+            .json({ error: "Uang Anda Kurang akwoakwokaow" });
+        }
+
+        await Transaction_Detail.create(
           {
-            id_product: id,
-            no_order: createCheckout.no_order,
-            quantity,
-            stock_product: updatedStock,
+            no_order,
+            total_price,
+            paid_amount,
+            id_product: product.id,
+            quantity: product.quantity,
           },
           { transaction: t }
         );
-
-        transactionDetails.push(transactionDetail);
       }
 
       await t.commit();
 
-      res.status(201).json({ createCheckout, transactionDetails });
+      res.status(201).json({ message: "Checkout successful" });
     } catch (err) {
-      await t.rollback();
+      await t.rollback(); // Rollback the transaction in case of an error
       next(err);
     }
   }

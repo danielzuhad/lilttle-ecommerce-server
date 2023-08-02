@@ -18,7 +18,10 @@ module.exports = {
       quantity: {
         type: Sequelize.INTEGER,
       },
-      stock_product: {
+      total_price: {
+        type: Sequelize.INTEGER,
+      },
+      paid_amount: {
         type: Sequelize.INTEGER,
       },
       createdAt: {

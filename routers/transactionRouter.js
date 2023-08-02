@@ -3,7 +3,6 @@ const router = express.Router();
 const transactionController = require("../controllers/transactionController");
 
 router.post("/create", transactionController.checkout);
-router.get("/", transactionController.getAll);
-router.get("/:id", transactionController.getById);
+router.get("/", transactionController.getLastCheckout);
 
 module.exports = router;
